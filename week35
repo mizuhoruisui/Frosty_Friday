@@ -1,0 +1,97 @@
+------------------------------------------------------------
+-- Frosty Friday Week 35
+-- https://frostyfriday.org/2023/02/24/week-35-intermediate/
+------------------------------------------------------------
+
+create database ff_35;
+create schema ff_35.answer;
+use schema ff_35.answer;
+------------------------------------------------------------
+-- ステージの作成
+------------------------------------------------------------
+create stage ff_35_ex_stage
+	url = 's3://frostyfridaychallenges/challenge_35/';
+
+------------------------------------------------------------
+--　解答
+------------------------------------------------------------
+-- ステージにあるファイルのリストを確認
+list @ff_35_ex_stage;
+
+-- ファイルの中身を見るためにファイルフォーマットを作成
+create or replace file format ff_35_csv
+    type = csv
+    field_delimiter = ','
+    skip_header = 0
+    field_optionally_enclosed_by = '"';
+
+    
+-- ファイルの中身を見てみる
+select $1,$2,$3,$4,metadata$filename from @ff_35_ex_stage/2022/01/salesdata_71983.csv
+(file_format => ff_35_csv);
+
+--　ファイルフォーマットを修正
+create or replace file format ff_35_csv
+    type = csv
+    field_delimiter = ','
+    skip_header = 1
+    field_optionally_enclosed_by = '"';
+
+-- 外部テーブルの作成
+create or replace external table ff_35_ex_table (
+    sale_month date as try_to_date(regexp_substr(metadata$filename, '\\d{4}\/\\d{2}'), 'yyyy/mm'),
+    id int as (value:c1::int),
+    drug_name string as (value:c2::string),
+    amount_sold number as (value:c3::number)
+)
+location = @ff_35_ex_stage
+file_format = ff_35_csv;
+
+
+------------------------------------------------------------
+-- 確認
+------------------------------------------------------------
+select
+    sale_month,
+    id,
+    drug_name,
+    amount_sold
+from ff_35_ex_table
+order by amount_sold;
+
+select * from ff_35_ex_table;
+
+
+
+-------------------------------
+-- 別解
+-------------------------------
+-- 外部テーブルの作成
+
+create or replace external table ff35_ex_table2(
+      sale_month date as to_date(
+          concat(
+              split_part(metadata$filename::string, '/', 2) -- Extract year
+            , '/'
+            , split_part(metadata$filename::string, '/', 3) -- Extract month
+          ), 'yyyy/mm'
+        )
+    , id int as (value:c1::int)
+    , drug_name varchar as (value:c2::string)
+    , amount_sold int as (value:c3::int)
+  )
+  location = @ff_35_ex_stage
+  file_format = ff_35_csv
+;
+
+
+-- 結果を確認
+
+select 
+    sale_month
+  , id
+  , drug_name
+  , amount_sold
+from ff35_ex_table2
+order by amount_sold;
+;
